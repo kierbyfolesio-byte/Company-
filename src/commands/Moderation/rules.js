@@ -1,12 +1,14 @@
-const { SlashCommandBuilder, EmbedBuilder, PermissionFlagsBits } = require('discord.js');
+import { SlashCommandBuilder, EmbedBuilder, PermissionFlagsBits } from 'discord.js';
 
-module.exports = {
+export default {
     data: new SlashCommandBuilder()
         .setName('setup_rules')
         .setDescription('Posts the official server rules embed.')
         .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 
-    async execute(interaction) {
+    category: 'moderation',
+
+    async execute(interaction, config, client) {
         const rulesEmbed = new EmbedBuilder()
             .setTitle('📜 Server Rules & Guidelines')
             .setDescription('Welcome to the community! Please read and follow these rules to ensure a safe and enjoyable environment for everyone.')
@@ -32,4 +34,3 @@ module.exports = {
         await interaction.reply({ embeds: [rulesEmbed] });
     },
 };
-              
