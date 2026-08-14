@@ -1,4 +1,4 @@
-import { SlashCommandBuilder, EmbedBuilder, PermissionFlagsBits } from 'discord.js';
+import { SlashCommandBuilder, EmbedBuilder, PermissionFlagsBits, MessageFlags } from 'discord.js';
 
 export default {
     data: new SlashCommandBuilder()
@@ -9,6 +9,9 @@ export default {
     category: 'moderation',
 
     async execute(interaction, config, client) {
+        // 1. Immediately tell Discord we received the command (prevents 3-second timeout)
+        await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+
         const rulesEmbed = new EmbedBuilder()
             .setTitle('📜 Server Rules & Guidelines')
             .setDescription('Welcome to the community! Please read and follow these rules to ensure a safe and enjoyable environment for everyone.')
@@ -31,6 +34,10 @@ export default {
                 iconURL: interaction.guild.iconURL({ dynamic: true }) 
             });
 
-        await interaction.reply({ embeds: [rulesEmbed] });
+        // 2. Post the clean standalone embed into the channel
+        await interaction.channel.send({ embeds: [rulesEmbed] });
+
+        // 3. Confirm to you in a hidden message
+        await interaction.editReply({ content: '✅ Rules have been posted cleanly!' });
     },
 };
