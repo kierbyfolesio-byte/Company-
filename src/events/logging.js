@@ -1,7 +1,7 @@
 import { Events, EmbedBuilder } from 'discord.js';
 
 // ⚙️ DEFAULT FALLBACK CHANNEL ID (Replace with your actual #LOGS channel ID)
-const LOG_CHANNEL_ID = '1529962815098454167';
+const LOG_CHANNEL_ID = '1537767642633469953';
 
 export default {
     name: Events.ClientReady,
