@@ -49,13 +49,13 @@ export default {
         const onlineOnly = interaction.options.getBoolean('online') || false;
         const shouldMention = interaction.options.getBoolean('mention') || false;
 
+        // Fetch all guild members to make sure we aren't relying on incomplete cache
+        await interaction.guild.members.fetch().catch(() => {});
+
         let members = interaction.guild.members.cache.filter(member => {
             if (member.user.bot && !includeBots) return false;
-
             if (onlineOnly && member.presence?.status === 'offline') return false;
-
             if (role && !member.roles.cache.has(role.id)) return false;
-
             return true;
         });
 
@@ -81,12 +81,16 @@ export default {
         const selectedMember = memberArray[randomIndex];
 
         const user = selectedMember.user;
-        const joinDate = selectedMember.joinedAt;
         const roles = selectedMember.roles.cache
-            .filter(role => role.id !== interaction.guild.id)
+            .filter(r => r.id !== interaction.guild.id)
             .sort((a, b) => b.position - a.position)
-            .map(role => role.toString())
+            .map(r => r.toString())
             .slice(0, 10);
+
+        // FIX: Replaced .setColor('primary') with a valid hex or color resolver
+        const embedColor = selectedMember.displayHexColor && selectedMember.displayHexColor !== '#000000'
+            ? selectedMember.displayHexColor 
+            : getColor('primary') || '#3498db';
 
         const embed = successEmbed(
             '🎲 Random User Selected',
@@ -96,9 +100,9 @@ export default {
         .addFields(
             { name: 'Username', value: user.username, inline: true },
             { name: 'Bot', value: user.bot ? 'Yes' : 'No', inline: true },
-            { name: `Roles (${roles.length})`, value: roles.length > 0 ? roles.slice(0, 5).join('') + (roles.length > 5 ? `+${roles.length - 5} more` : '') : 'No roles', inline: false }
+            { name: `Roles (${roles.length})`, value: roles.length > 0 ? roles.slice(0, 5).join(' ') + (roles.length > 5 ? ` +${roles.length - 5} more` : '') : 'No roles', inline: false }
         )
-        .setColor('primary');
+        .setColor(embedColor);
 
         const row = new ActionRowBuilder()
             .addComponents(
@@ -122,11 +126,8 @@ export default {
             try {
                 let newMembers = interaction.guild.members.cache.filter(member => {
                     if (member.user.bot && !includeBots) return false;
-
                     if (onlineOnly && member.presence?.status === 'offline') return false;
-
                     if (role && !member.roles.cache.has(role.id)) return false;
-
                     return true;
                 });
 
@@ -154,6 +155,10 @@ export default {
                     .map(r => r.toString())
                     .slice(0, 10);
 
+                const newEmbedColor = newSelectedMember.displayHexColor && newSelectedMember.displayHexColor !== '#000000'
+                    ? newSelectedMember.displayHexColor 
+                    : getColor('primary') || '#3498db';
+
                 const newEmbed = successEmbed(
                     '🎲 Random User Selected',
                     shouldMention ? `${newSelectedMember}` : `**${newUser.username}**`
@@ -162,9 +167,9 @@ export default {
                 .addFields(
                     { name: 'Username', value: newUser.username, inline: true },
                     { name: 'Bot', value: newUser.bot ? 'Yes' : 'No', inline: true },
-                    { name: `Roles (${newRoles.length})`, value: newRoles.length > 0 ? newRoles.slice(0, 5).join('') + (newRoles.length > 5 ? `+${newRoles.length - 5} more` : '') : 'No roles', inline: false }
+                    { name: `Roles (${newRoles.length})`, value: newRoles.length > 0 ? newRoles.slice(0, 5).join(' ') + (newRoles.length > 5 ? ` +${newRoles.length - 5} more` : '') : 'No roles', inline: false }
                 )
-                .setColor(newSelectedMember.displayHexColor || '#3498db');
+                .setColor(newEmbedColor);
 
                 await i.update({
                     content: shouldMention ? `${newSelectedMember}, you've been chosen!` : null,
