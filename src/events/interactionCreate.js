@@ -160,6 +160,17 @@ export default {
               return;
             }
 
+            // --- INTERCEPTOR: Posts directly to channel without command headers ---
+            const originalReply = interaction.reply.bind(interaction);
+            interaction.reply = async (options) => {
+              if (typeof options === 'object' && (options.ephemeral || options.flags === MessageFlags.Ephemeral)) {
+                return await originalReply(options);
+              }
+              await interaction.channel.send(options);
+              return await originalReply({ content: '✅ Command executed cleanly.', flags: MessageFlags.Ephemeral });
+            };
+            // ----------------------------------------------------------------------
+
             await command.execute(interaction, guildConfig, client);
           } catch (error) {
             await handleInteractionError(interaction, error, withTraceContext({
@@ -460,12 +471,4 @@ export default {
         } catch (replyError) {
           logger.error('Failed to send fallback error response:', {
             event: 'interaction.error_response_failed',
-            errorCode: ErrorCodes.INTERACTION_RESPONSE_FAILED,
-            error: replyError,
-            traceId: interactionTraceContext.traceId
-          });
-        }
-      }
-    });
-  }
-};
+            errorCode: ErrorCodes.
