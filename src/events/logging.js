@@ -1,19 +1,22 @@
 import { Events, EmbedBuilder } from 'discord.js';
 
-// ⚙️ REPLACE WITH YOUR ACTUAL LOG CHANNEL ID
+// ⚙️ DEFAULT FALLBACK CHANNEL ID (Replace with your actual #LOGS channel ID)
 const LOG_CHANNEL_ID = '1529962815098454167';
 
 export default {
     name: Events.ClientReady,
     once: true,
     async execute(client) {
-        console.log('⚡ Consolidated Logger initialized!');
+        console.log('⚡ Consolidated Carl-Style Logger initialized!');
 
-        // Helper function to get log channel safely
+        // Helper function to fetch log channel safely
         const getLogChannel = async (guild) => {
             if (!guild) return null;
-            return guild.channels.cache.get(LOG_CHANNEL_ID) 
-                || await guild.channels.fetch(LOG_CHANNEL_ID).catch(() => null);
+            const targetChannelId = guild.client.logChannels?.get(guild.id) || LOG_CHANNEL_ID;
+            if (!targetChannelId || targetChannelId === '1234567890123456789') return null;
+
+            return guild.channels.cache.get(targetChannelId) 
+                || await guild.channels.fetch(targetChannelId).catch(() => null);
         };
 
         // ===================================================
@@ -71,7 +74,88 @@ export default {
         });
 
         // ===================================================
-        // 3. ROLES & SERVER AVATAR UPDATES
+        // 3. MEMBER JOINS
+        // ===================================================
+        client.on(Events.GuildMemberAdd, async (member) => {
+            const logChannel = await getLogChannel(member.guild);
+            if (!logChannel) return;
+
+            const embed = new EmbedBuilder()
+                .setAuthor({ 
+                    name: member.user.tag, 
+                    iconURL: member.user.displayAvatarURL({ dynamic: true }) 
+                })
+                .setColor(0x2ECC71) // Green
+                .setThumbnail(member.user.displayAvatarURL({ dynamic: true, size: 256 }))
+                .setDescription(`**Member joined**\n\n${member} (${member.user.tag})`)
+                .setFooter({ text: `ID: ${member.id}` })
+                .setTimestamp();
+
+            await logChannel.send({ embeds: [embed] }).catch(() => {});
+        });
+
+        // ===================================================
+        // 4. MEMBER LEAVES
+        // ===================================================
+        client.on(Events.GuildMemberRemove, async (member) => {
+            const logChannel = await getLogChannel(member.guild);
+            if (!logChannel) return;
+
+            const embed = new EmbedBuilder()
+                .setAuthor({ 
+                    name: member.user.tag, 
+                    iconURL: member.user.displayAvatarURL({ dynamic: true }) 
+                })
+                .setColor(0xED4245) // Red
+                .setDescription(`**Member left**\n\n${member.user.tag}`)
+                .setFooter({ text: `ID: ${member.id}` })
+                .setTimestamp();
+
+            await logChannel.send({ embeds: [embed] }).catch(() => {});
+        });
+
+        // ===================================================
+        // 5. BANS
+        // ===================================================
+        client.on(Events.GuildBanAdd, async (ban) => {
+            const logChannel = await getLogChannel(ban.guild);
+            if (!logChannel) return;
+
+            const embed = new EmbedBuilder()
+                .setAuthor({ 
+                    name: ban.user.tag, 
+                    iconURL: ban.user.displayAvatarURL({ dynamic: true }) 
+                })
+                .setColor(0xED4245) // Red
+                .setDescription(`**Member banned**\n\n${ban.user.tag}`)
+                .setFooter({ text: `ID: ${ban.user.id}` })
+                .setTimestamp();
+
+            await logChannel.send({ embeds: [embed] }).catch(() => {});
+        });
+
+        // ===================================================
+        // 6. UNBANS
+        // ===================================================
+        client.on(Events.GuildBanRemove, async (ban) => {
+            const logChannel = await getLogChannel(ban.guild);
+            if (!logChannel) return;
+
+            const embed = new EmbedBuilder()
+                .setAuthor({ 
+                    name: ban.user.tag, 
+                    iconURL: ban.user.displayAvatarURL({ dynamic: true }) 
+                })
+                .setColor(0x2ECC71) // Green
+                .setDescription(`**Member unbanned**\n\n${ban.user.tag}`)
+                .setFooter({ text: `ID: ${ban.user.id}` })
+                .setTimestamp();
+
+            await logChannel.send({ embeds: [embed] }).catch(() => {});
+        });
+
+        // ===================================================
+        // 7. MEMBER ROLES, NICKNAMES & SERVER AVATARS
         // ===================================================
         client.on(Events.GuildMemberUpdate, async (oldMember, newMember) => {
             if (!oldMember?.guild) return;
@@ -103,13 +187,32 @@ export default {
                         name: newMember.user.tag, 
                         iconURL: newMember.user.displayAvatarURL({ dynamic: true }) 
                     })
-                    .setColor(0x2ECC71) // Green
+                    .setColor(0x2ECC71)
                     .setDescription(`**Role added**\n\n<@&${role.id}>`)
                     .setFooter({ text: `ID: ${newMember.id}` })
                     .setTimestamp();
 
                 await logChannel.send({ embeds: [embed] }).catch(() => {});
             });
+
+            // Server Nickname Update
+            if (oldMember.nickname !== newMember.nickname) {
+                const embed = new EmbedBuilder()
+                    .setAuthor({ 
+                        name: newMember.user.tag, 
+                        iconURL: newMember.user.displayAvatarURL({ dynamic: true }) 
+                    })
+                    .setColor(0x3498DB)
+                    .setDescription(
+                        `**Nickname update**\n\n` +
+                        `**Before:** ${oldMember.nickname || oldMember.user.username}\n` +
+                        `**After:** ${newMember.nickname || newMember.user.username}`
+                    )
+                    .setFooter({ text: `ID: ${newMember.id}` })
+                    .setTimestamp();
+
+                await logChannel.send({ embeds: [embed] }).catch(() => {});
+            }
 
             // Server Avatar Update
             if (oldMember.avatar !== newMember.avatar) {
@@ -120,7 +223,7 @@ export default {
                     })
                     .setColor(0x3498DB)
                     .setThumbnail(newMember.displayAvatarURL({ dynamic: true, size: 256 }))
-                    .setDescription(`**Avatar update**\n\n${newMember}`)
+                    .setDescription(`**Server avatar update**\n\n${newMember}`)
                     .setFooter({ text: `ID: ${newMember.id}` })
                     .setTimestamp();
 
@@ -129,27 +232,47 @@ export default {
         });
 
         // ===================================================
-        // 4. GLOBAL DISCORD AVATAR UPDATE
+        // 8. GLOBAL USERNAME & GLOBAL AVATAR UPDATES
         // ===================================================
         client.on(Events.UserUpdate, async (oldUser, newUser) => {
-            if (oldUser.avatar === newUser.avatar) return;
-
             const guild = newUser.client.guilds.cache.first();
             const logChannel = await getLogChannel(guild);
             if (!logChannel) return;
 
-            const embed = new EmbedBuilder()
-                .setAuthor({ 
-                    name: newUser.tag, 
-                    iconURL: newUser.displayAvatarURL({ dynamic: true }) 
-                })
-                .setColor(0x3498DB)
-                .setThumbnail(newUser.displayAvatarURL({ dynamic: true, size: 256 }))
-                .setDescription(`**Avatar update**\n\n${newUser}`)
-                .setFooter({ text: `ID: ${newUser.id}` })
-                .setTimestamp();
+            // Global Name / Display Name Update
+            if (oldUser.username !== newUser.username || oldUser.displayName !== newUser.displayName) {
+                const embed = new EmbedBuilder()
+                    .setAuthor({ 
+                        name: newUser.tag, 
+                        iconURL: newUser.displayAvatarURL({ dynamic: true }) 
+                    })
+                    .setColor(0x3498DB)
+                    .setDescription(
+                        `**Name update**\n\n` +
+                        `**Before:** ${oldUser.tag} (${oldUser.displayName})\n` +
+                        `**After:** ${newUser.tag} (${newUser.displayName})`
+                    )
+                    .setFooter({ text: `ID: ${newUser.id}` })
+                    .setTimestamp();
 
-            await logChannel.send({ embeds: [embed] }).catch(() => {});
+                await logChannel.send({ embeds: [embed] }).catch(() => {});
+            }
+
+            // Global Avatar Update
+            if (oldUser.avatar !== newUser.avatar) {
+                const embed = new EmbedBuilder()
+                    .setAuthor({ 
+                        name: newUser.tag, 
+                        iconURL: newUser.displayAvatarURL({ dynamic: true }) 
+                    })
+                    .setColor(0x3498DB)
+                    .setThumbnail(newUser.displayAvatarURL({ dynamic: true, size: 256 }))
+                    .setDescription(`**Avatar update**\n\n${newUser}`)
+                    .setFooter({ text: `ID: ${newUser.id}` })
+                    .setTimestamp();
+
+                await logChannel.send({ embeds: [embed] }).catch(() => {});
+            }
         });
     },
 };
