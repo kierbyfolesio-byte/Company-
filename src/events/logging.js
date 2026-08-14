@@ -1,7 +1,7 @@
 import { Events, EmbedBuilder } from 'discord.js';
 
 // ⚙️ REPLACE WITH YOUR ACTUAL LOG CHANNEL ID
-const LOG_CHANNEL_ID = 'ʟᴏɢꜱ-🗄️';
+const LOG_CHANNEL_ID = '1529962815098454167';
 
 export default {
     name: Events.ClientReady,
