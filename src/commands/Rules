@@ -1,0 +1,110 @@
+import discord
+from discord import app_commands
+from discord.ext import commands
+
+# Initialize bot with default intents
+intents = discord.Intents.default()
+bot = commands.Bot(command_prefix="!", intents=intents)
+
+@bot.event
+async def on_ready():
+    print(f"Logged in as {bot.user}!")
+    try:
+        # Sync slash commands with Discord
+        synced = await bot.tree.sync()
+        print(f"Synced {len(synced)} slash command(s).")
+    except Exception as e:
+        print(f"Failed to sync commands: {e}")
+
+@bot.tree.command(name="setup_rules", description="Posts the official server rules embed.")
+@app_commands.checks.has_permissions(administrator=True)
+async def setup_rules(interaction: discord.Interaction):
+    """Admin-only command to generate the rules post."""
+    
+    # Create the embed container
+    embed = discord.Embed(
+        title="📜 Server Rules & Guidelines",
+        description="Welcome to the community! Please read and follow these rules to ensure a safe and enjoyable environment for everyone.",
+        color=discord.Color.blue()
+    )
+
+    # Core Community Rules
+    embed.add_field(
+        name="1. Treat Everyone with Respect",
+        value="Harassment, hate speech, sexism, racism, or toxicity of any kind will result in an immediate ban.",
+        inline=False
+    )
+    embed.add_field(
+        name="2. No Spam or Excessive Self-Promotion",
+        value="Keep chat clear. Do not advertise your content, social links, or servers outside of designated promo channels.",
+        inline=False
+    )
+    embed.add_field(
+        name="3. Keep Content Safe for Work (SFW)",
+        value="Explicit, violent, or sexually suggestive material is strictly prohibited across all text and voice channels.",
+        inline=False
+    )
+    embed.add_field(
+        name="4. Respect Staff Instructions",
+        value="Moderators have the final say. If asked to stop a behavior or topic, please comply respectfully.",
+        inline=False
+    )
+    embed.add_field(
+        name="5. Follow Discord TOS",
+        value="Adhere to the official [Discord Community Guidelines](https://discord.com/guidelines) at all times.",
+        inline=False
+    )
+
+    # Expanded Rules
+    embed.add_field(
+        name="6. Respect Channel Topics",
+        value="Keep discussions relevant to the channel you are in. Check channel descriptions if you aren't sure where to post.",
+        inline=False
+    )
+    embed.add_field(
+        name="7. No Excessive Pinging",
+        value="Do not tag members, staff, or roles unnecessarily. Avoid pinging people repeatedly for attention.",
+        inline=False
+    )
+    embed.add_field(
+        name="8. Voice Channel Etiquette",
+        value="No ear-splitting noises, soundboard spam, or voice changers. Keep screen shares SFW.",
+        inline=False
+    )
+    embed.add_field(
+        name="9. Protect Privacy (No Doxxing)",
+        value="Never share private personal information of yourself or others without explicit consent.",
+        inline=False
+    )
+    embed.add_field(
+        name="10. No DM Spam or Advertising",
+        value="DMing server members with unsolicited self-promotion, links, or harassment will result in a ban.",
+        inline=False
+    )
+    embed.add_field(
+        name="11. Appropriate Profiles",
+        value="Usernames, nicknames, avatars, and statuses must remain SFW and respectful.",
+        inline=False
+    )
+
+    # Add server icon to footer if available
+    guild_icon = interaction.guild.icon.url if interaction.guild.icon else None
+    embed.set_footer(
+        text=f"{interaction.guild.name} • Subject to change by staff", 
+        icon_url=guild_icon
+    )
+
+    # Send the rules embed to the channel
+    await interaction.response.send_message(embed=embed)
+
+# Error handler if a non-admin tries to run the command
+@setup_rules.error
+async def setup_rules_error(interaction: discord.Interaction, error: app_commands.AppCommandError):
+    if isinstance(error, app_commands.MissingPermissions):
+        await interaction.response.send_message(
+            "❌ You need **Administrator** permissions to use this command.", 
+            ephemeral=True
+        )
+
+# Replace 'YOUR_BOT_TOKEN_HERE' with your secret token from the Discord Developer Portal
+bot.run("YOUR_BOT_TOKEN_HERE")
