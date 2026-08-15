@@ -9,8 +9,8 @@ export default {
 
         // List up to 6 channel IDs where you want auto-reactions active
         const TARGET_CHANNEL_IDS = [
-            '1529966689918259282',
-            '1529966689918259282',
+            'CHANNEL_ID_1',
+            'CHANNEL_ID_2',
             'CHANNEL_ID_3',
             'CHANNEL_ID_4',
             'CHANNEL_ID_5',
@@ -20,9 +20,17 @@ export default {
         // Stop execution if the message isn't in one of your target channels
         if (!TARGET_CHANNEL_IDS.includes(message.channel.id)) return;
 
-        // Custom Emoji IDs
-        const LIKE_EMOJI_ID = '153810823129';
-        const DISLIKE_EMOJI_ID = '153810825086';
+        // Check if the message contains at least one image attachment
+        const hasImage = message.attachments.some(attachment => 
+            attachment.contentType?.startsWith('image/') || Boolean(attachment.height)
+        );
+
+        // Stop execution if there are no images attached
+        if (!hasImage) return;
+
+        // Custom Emoji IDs (Remember: standard Discord IDs are 18-19 digits long)
+        const LIKE_EMOJI_ID = '1538108231291904040';
+        const DISLIKE_EMOJI_ID = '1538108250866716672';
 
         try {
             await message.react(LIKE_EMOJI_ID);
