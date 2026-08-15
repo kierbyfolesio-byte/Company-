@@ -9,8 +9,8 @@ export default {
 
         // List up to 6 channel IDs where you want auto-reactions active
         const TARGET_CHANNEL_IDS = [
-            'CHANNEL_ID_1',
-            'CHANNEL_ID_2',
+            '1538114405349204059',
+            '1529966689918259282',
             'CHANNEL_ID_3',
             'CHANNEL_ID_4',
             'CHANNEL_ID_5',
