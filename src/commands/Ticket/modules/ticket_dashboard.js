@@ -15,14 +15,77 @@ import { replyUserError, ErrorTypes } from '../../../utils/errorHandler.js';
 export default {
     async execute(interaction, config, client) {
         try {
-            const guildConfig = (await getGuildConfig(client, interaction.guildId)) || {};
-            const embed = this.buildDashboardEmbed(guildConfig);
-            const components = this.buildDashboardComponents(guildConfig);
+            let guildConfig = (await getGuildConfig(client, interaction.guildId)) || {};
+            let selectedIndex = null;
 
-            await InteractionHelper.safeEditReply(interaction, {
+            // 1. Initial render
+            const embed = this.buildDashboardEmbed(guildConfig, selectedIndex);
+            const components = this.buildDashboardComponents(guildConfig, selectedIndex);
+
+            const response = await InteractionHelper.safeEditReply(interaction, {
                 embeds: [embed],
                 components: components,
             });
+
+            if (!response) return;
+
+            // 2. Self-contained collector (handles all buttons & menus in-file)
+            const collector = response.createMessageComponentCollector({
+                filter: (i) => i.user.id === interaction.user.id,
+                time: 600000 // Active for 10 minutes
+            });
+
+            collector.on('collect', async (i) => {
+                // INSTANT ACKNOWLEDGMENT (Fixes "didn't respond in time")
+                await i.deferUpdate().catch(() => {});
+
+                const { customId, values } = i;
+
+                if (customId === 'ticket_dash_select_panel') {
+                    selectedIndex = parseInt(values[0].replace('panel_', ''), 10);
+                } 
+                else if (customId.startsWith('ticket_dash_delete_')) {
+                    const indexToDelete = parseInt(customId.replace('ticket_dash_delete_', ''), 10);
+                    if (Array.isArray(guildConfig.ticketPanels)) {
+                        guildConfig.ticketPanels.splice(indexToDelete, 1);
+                        await setGuildConfig(client, interaction.guildId, guildConfig);
+                        selectedIndex = null;
+                    }
+                } 
+                else if (customId === 'ticket_dash_deselect') {
+                    selectedIndex = null;
+                }
+                else if (customId === 'ticket_dash_toggle_dm') {
+                    guildConfig.dmOnClose = guildConfig.dmOnClose === false;
+                    await setGuildConfig(client, interaction.guildId, guildConfig);
+                } 
+                else if (customId === 'ticket_dash_clear_all') {
+                    guildConfig.ticketPanels = [];
+                    await setGuildConfig(client, interaction.guildId, guildConfig);
+                    selectedIndex = null;
+                }
+                else if (customId === 'ticket_dash_refresh') {
+                    guildConfig = (await getGuildConfig(client, interaction.guildId)) || {};
+                }
+
+                // Render updated state
+                const newEmbed = this.buildDashboardEmbed(guildConfig, selectedIndex);
+                const newComponents = this.buildDashboardComponents(guildConfig, selectedIndex);
+
+                await i.editReply({
+                    embeds: [newEmbed],
+                    components: newComponents
+                }).catch(() => {});
+            });
+
+            collector.on('end', async () => {
+                const disabledComponents = this.buildDashboardComponents(guildConfig, selectedIndex);
+                disabledComponents.forEach(row => {
+                    row.components.forEach(comp => comp.setDisabled(true));
+                });
+                await interaction.editReply({ components: disabledComponents }).catch(() => {});
+            });
+
         } catch (error) {
             logger.error('Error executing ticket dashboard module', { error: error.message, guildId: interaction.guildId });
             await replyUserError(interaction, { type: ErrorTypes.UNKNOWN, message: 'Failed to display dashboard.' });
@@ -46,8 +109,10 @@ export default {
         }
 
         return createEmbed({
-            title: '⚙️ Ticket System Dashboard',
-            description: selectedIndex !== null ? `**Managing Panel #${selectedIndex + 1}**` : 'Select a panel below to edit or delete it.',
+            title: '⚙️ Ticket System Control Panel',
+            description: selectedIndex !== null 
+                ? `**Managing Panel #${selectedIndex + 1}**` 
+                : 'Select a panel from the menu below to manage or delete it.',
             color: getColor('info'),
             fields: [
                 { name: '🛡️ Staff Role', value: staffRole, inline: true },
@@ -78,7 +143,7 @@ export default {
                 new ActionRowBuilder().addComponents(
                     new StringSelectMenuBuilder()
                         .setCustomId('ticket_dash_select_panel')
-                        .setPlaceholder('Select a panel to edit...')
+                        .setPlaceholder('Select a panel to manage...')
                         .addOptions(options)
                 )
             );
@@ -87,7 +152,6 @@ export default {
         const buttonRow = new ActionRowBuilder();
 
         if (selectedIndex !== null && panels[selectedIndex]) {
-            // Controls specific to a selected panel
             buttonRow.addComponents(
                 new ButtonBuilder()
                     .setCustomId(`ticket_dash_delete_${selectedIndex}`)
@@ -101,7 +165,6 @@ export default {
                     .setEmoji('↩️')
             );
         } else {
-            // Global controls
             buttonRow.addComponents(
                 new ButtonBuilder()
                     .setCustomId('ticket_dash_toggle_dm')
@@ -124,46 +187,5 @@ export default {
 
         components.push(buttonRow);
         return components;
-    },
-
-    /**
-     * Handles button clicks and dropdown selection events instantly.
-     */
-    async handleComponentInteraction(interaction, client) {
-        try {
-            // 1. Immediately acknowledge Discord to prevent timeouts
-            await interaction.deferUpdate();
-
-            const guildConfig = (await getGuildConfig(client, interaction.guildId)) || {};
-            const { customId, values } = interaction;
-            let selectedIndex = null;
-
-            if (customId === 'ticket_dash_select_panel') {
-                selectedIndex = parseInt(values[0].replace('panel_', ''), 10);
-            } 
-            else if (customId.startsWith('ticket_dash_delete_')) {
-                const indexToDelete = parseInt(customId.replace('ticket_dash_delete_', ''), 10);
-                if (Array.isArray(guildConfig.ticketPanels)) {
-                    guildConfig.ticketPanels.splice(indexToDelete, 1);
-                    await setGuildConfig(client, interaction.guildId, guildConfig);
-                }
-            } 
-            else if (customId === 'ticket_dash_toggle_dm') {
-                guildConfig.dmOnClose = guildConfig.dmOnClose === false;
-                await setGuildConfig(client, interaction.guildId, guildConfig);
-            } 
-            else if (customId === 'ticket_dash_clear_all') {
-                guildConfig.ticketPanels = [];
-                await setGuildConfig(client, interaction.guildId, guildConfig);
-            }
-
-            // 2. Render updated dashboard
-            const embed = this.buildDashboardEmbed(guildConfig, selectedIndex);
-            const components = this.buildDashboardComponents(guildConfig, selectedIndex);
-
-            await interaction.editReply({ embeds: [embed], components });
-        } catch (error) {
-            logger.error('Error handling ticket component interaction', { error: error.message, guildId: interaction.guildId });
-        }
     }
 };
