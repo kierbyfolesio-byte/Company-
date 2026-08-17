@@ -18,67 +18,73 @@ export default {
             let guildConfig = (await getGuildConfig(client, interaction.guildId)) || {};
             let selectedIndex = null;
 
-            // 1. Initial render
-            const embed = this.buildDashboardEmbed(guildConfig, selectedIndex);
-            const components = this.buildDashboardComponents(guildConfig, selectedIndex);
+            // Initial dashboard render
+            const initialEmbed = this.buildDashboardEmbed(guildConfig, selectedIndex);
+            const initialComponents = this.buildDashboardComponents(guildConfig, selectedIndex);
 
             const response = await InteractionHelper.safeEditReply(interaction, {
-                embeds: [embed],
-                components: components,
+                embeds: [initialEmbed],
+                components: initialComponents,
             });
 
             if (!response) return;
 
-            // 2. Self-contained collector (handles all buttons & menus in-file)
+            // Self-contained interaction listener (Active for 15 minutes)
             const collector = response.createMessageComponentCollector({
                 filter: (i) => i.user.id === interaction.user.id,
-                time: 600000 // Active for 10 minutes
+                time: 900000 
             });
 
             collector.on('collect', async (i) => {
-                // INSTANT ACKNOWLEDGMENT (Fixes "didn't respond in time")
+                // 1. INSTANT ACKNOWLEDGMENT — Prevents Discord's 3-second timeout completely
                 await i.deferUpdate().catch(() => {});
 
                 const { customId, values } = i;
 
-                if (customId === 'ticket_dash_select_panel') {
-                    selectedIndex = parseInt(values[0].replace('panel_', ''), 10);
-                } 
-                else if (customId.startsWith('ticket_dash_delete_')) {
-                    const indexToDelete = parseInt(customId.replace('ticket_dash_delete_', ''), 10);
-                    if (Array.isArray(guildConfig.ticketPanels)) {
-                        guildConfig.ticketPanels.splice(indexToDelete, 1);
+                try {
+                    // Always pull latest config state
+                    guildConfig = (await getGuildConfig(client, interaction.guildId)) || {};
+
+                    if (customId === 'ticket_dash_select_panel') {
+                        selectedIndex = parseInt(values[0].replace('panel_', ''), 10);
+                    } 
+                    else if (customId.startsWith('ticket_dash_delete_')) {
+                        const indexToDelete = parseInt(customId.replace('ticket_dash_delete_', ''), 10);
+                        if (Array.isArray(guildConfig.ticketPanels) && guildConfig.ticketPanels[indexToDelete]) {
+                            guildConfig.ticketPanels.splice(indexToDelete, 1);
+                            await setGuildConfig(client, interaction.guildId, guildConfig);
+                        }
+                        selectedIndex = null;
+                    } 
+                    else if (customId === 'ticket_dash_deselect') {
+                        selectedIndex = null;
+                    }
+                    else if (customId === 'ticket_dash_toggle_dm') {
+                        guildConfig.dmOnClose = guildConfig.dmOnClose === false;
+                        await setGuildConfig(client, interaction.guildId, guildConfig);
+                    } 
+                    else if (customId === 'ticket_dash_clear_all') {
+                        guildConfig.ticketPanels = [];
                         await setGuildConfig(client, interaction.guildId, guildConfig);
                         selectedIndex = null;
                     }
-                } 
-                else if (customId === 'ticket_dash_deselect') {
-                    selectedIndex = null;
-                }
-                else if (customId === 'ticket_dash_toggle_dm') {
-                    guildConfig.dmOnClose = guildConfig.dmOnClose === false;
-                    await setGuildConfig(client, interaction.guildId, guildConfig);
-                } 
-                else if (customId === 'ticket_dash_clear_all') {
-                    guildConfig.ticketPanels = [];
-                    await setGuildConfig(client, interaction.guildId, guildConfig);
-                    selectedIndex = null;
-                }
-                else if (customId === 'ticket_dash_refresh') {
-                    guildConfig = (await getGuildConfig(client, interaction.guildId)) || {};
-                }
 
-                // Render updated state
-                const newEmbed = this.buildDashboardEmbed(guildConfig, selectedIndex);
-                const newComponents = this.buildDashboardComponents(guildConfig, selectedIndex);
+                    // Render updated interface state
+                    const updatedEmbed = this.buildDashboardEmbed(guildConfig, selectedIndex);
+                    const updatedComponents = this.buildDashboardComponents(guildConfig, selectedIndex);
 
-                await i.editReply({
-                    embeds: [newEmbed],
-                    components: newComponents
-                }).catch(() => {});
+                    await interaction.editReply({
+                        embeds: [updatedEmbed],
+                        components: updatedComponents
+                    }).catch(() => {});
+
+                } catch (err) {
+                    logger.error('Error processing dashboard component click:', err);
+                }
             });
 
             collector.on('end', async () => {
+                // Gracefully disable controls when collector times out
                 const disabledComponents = this.buildDashboardComponents(guildConfig, selectedIndex);
                 disabledComponents.forEach(row => {
                     row.components.forEach(comp => comp.setDisabled(true));
@@ -88,7 +94,7 @@ export default {
 
         } catch (error) {
             logger.error('Error executing ticket dashboard module', { error: error.message, guildId: interaction.guildId });
-            await replyUserError(interaction, { type: ErrorTypes.UNKNOWN, message: 'Failed to display dashboard.' });
+            await replyUserError(interaction, { type: ErrorTypes.UNKNOWN, message: 'Failed to display ticket dashboard.' });
         }
     },
 
@@ -100,7 +106,7 @@ export default {
         const maxTickets = guildConfig.maxTicketsPerUser === 0 ? 'Unlimited' : (guildConfig.maxTicketsPerUser ?? 3);
         const dmOnClose = guildConfig.dmOnClose !== false ? 'Enabled' : 'Disabled';
 
-        let panelSummaryText = 'No panels configured yet.';
+        let panelSummaryText = 'No panels configured yet. Use `/ticket setup` to create one.';
         if (panels.length > 0) {
             panelSummaryText = panels.map((p, idx) => {
                 const activeMarker = selectedIndex === idx ? '➡️ ' : '• ';
@@ -111,8 +117,8 @@ export default {
         return createEmbed({
             title: '⚙️ Ticket System Control Panel',
             description: selectedIndex !== null 
-                ? `**Managing Panel #${selectedIndex + 1}**` 
-                : 'Select a panel from the menu below to manage or delete it.',
+                ? `**Managing Panel #${selectedIndex + 1}**\nUse the red button below to remove this panel configuration.` 
+                : 'Select a panel from the dropdown menu to manage/delete it, or use the action buttons.',
             color: getColor('info'),
             fields: [
                 { name: '🛡️ Staff Role', value: staffRole, inline: true },
@@ -130,11 +136,12 @@ export default {
         const components = [];
         const panels = Array.isArray(guildConfig.ticketPanels) ? guildConfig.ticketPanels : [];
 
+        // 1. Dropdown Select Menu
         if (panels.length > 0) {
             const options = panels.slice(0, 25).map((panel, idx) => 
                 new StringSelectMenuOptionBuilder()
                     .setLabel(`Panel #${idx + 1} - #${panel.panelChannelId}`)
-                    .setDescription(`Label: "${panel.buttonLabel || 'Create Ticket'}"`)
+                    .setDescription(`Button Label: "${panel.buttonLabel || 'Create Ticket'}"`)
                     .setValue(`panel_${idx}`)
                     .setDefault(selectedIndex === idx)
             );
@@ -143,12 +150,13 @@ export default {
                 new ActionRowBuilder().addComponents(
                     new StringSelectMenuBuilder()
                         .setCustomId('ticket_dash_select_panel')
-                        .setPlaceholder('Select a panel to manage...')
+                        .setPlaceholder('Select a panel to edit or delete...')
                         .addOptions(options)
                 )
             );
         }
 
+        // 2. Action Buttons
         const buttonRow = new ActionRowBuilder();
 
         if (selectedIndex !== null && panels[selectedIndex]) {
