@@ -272,8 +272,8 @@ async function handleLeveling(message, client) {
                     );
 
                     if (hasImage) {
-                        await message.react('153810823129');
-                        await message.react('153810825086');
+                        await message.react('1538769712895361054');
+                        await message.react('1538769633060851742');
                     }
                 }
             }
