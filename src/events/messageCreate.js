@@ -251,3 +251,35 @@ async function handleLeveling(message, client) {
     logger.error('Error handling leveling for message:', error);
   }
 }
+
+  // ----------------------------------------------------
+        // 2. ADD THE AUTO-REACTION BLOCK BELOW YOUR EXISTING CODE
+        // ----------------------------------------------------
+        try {
+            if (!message.author.bot) {
+                const TARGET_CHANNEL_IDS = [
+                    'CHANNEL_ID_1',
+                    'CHANNEL_ID_2',
+                    'CHANNEL_ID_3',
+                    'CHANNEL_ID_4',
+                    'CHANNEL_ID_5',
+                    'CHANNEL_ID_6'
+                ];
+
+                if (TARGET_CHANNEL_IDS.includes(message.channel.id)) {
+                    const hasImage = message.attachments.some(attachment => 
+                        attachment.contentType?.startsWith('image/') || Boolean(attachment.height)
+                    );
+
+                    if (hasImage) {
+                        await message.react('153810823129');
+                        await message.react('153810825086');
+                    }
+                }
+            }
+        } catch (error) {
+            console.error(`Auto-react error:`, error);
+        }
+        
+    }
+};
