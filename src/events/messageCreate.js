@@ -252,9 +252,6 @@ async function handleLeveling(message, client) {
   }
 }
 
-  // ----------------------------------------------------
-        // 2. ADD THE AUTO-REACTION BLOCK BELOW YOUR EXISTING CODE
-        // ----------------------------------------------------
         try {
             if (!message.author.bot) {
                 const TARGET_CHANNEL_IDS = [
