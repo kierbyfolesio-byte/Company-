@@ -258,8 +258,8 @@ async function handleLeveling(message, client) {
         try {
             if (!message.author.bot) {
                 const TARGET_CHANNEL_IDS = [
-                    'CHANNEL_ID_1',
-                    'CHANNEL_ID_2',
+                    '153810823129',
+                    '153810825086',
                     'CHANNEL_ID_3',
                     'CHANNEL_ID_4',
                     'CHANNEL_ID_5',
