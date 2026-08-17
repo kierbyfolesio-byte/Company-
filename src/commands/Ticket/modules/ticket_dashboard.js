@@ -1,4 +1,10 @@
-import { ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder, StringSelectMenuOptionBuilder } from 'discord.js';
+import { 
+    ActionRowBuilder, 
+    ButtonBuilder, 
+    ButtonStyle, 
+    StringSelectMenuBuilder, 
+    StringSelectMenuOptionBuilder 
+} from 'discord.js';
 import { getColor } from '../../../config/bot.js';
 import { createEmbed } from '../../../utils/embeds.js';
 import { getGuildConfig, setGuildConfig } from '../../../services/config/guildConfig.js';
@@ -95,7 +101,6 @@ export default {
     },
 
     async handleInteraction(interaction, client) {
-        // INSTANT ACKNOWLEDGMENT TO PREVENT TIMEOUT
         if (!interaction.deferred && !interaction.replied) {
             await interaction.deferUpdate().catch(() => {});
         }
