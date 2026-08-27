@@ -252,21 +252,11 @@ async function handleLeveling(message, client) {
   }
 }
 
-// Keep your existing imports at the top of the file!
-
 export default {
     name: Events.MessageCreate,
     once: false,
     async execute(message, config, client) {
-        // ----------------------------------------------------
-        // 1. KEEP YOUR EXISTING CODE HERE 
-        // (Don't touch any of the code already in this file!)
-        // ----------------------------------------------------
 
-
-        // ----------------------------------------------------
-        // 2. ADD THE AUTO-REACTION BLOCK BELOW YOUR EXISTING CODE
-        // ----------------------------------------------------
         try {
             if (!message.author.bot) {
                 const TARGET_CHANNEL_IDS = [
