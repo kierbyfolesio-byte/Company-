@@ -9,10 +9,10 @@ export default {
 
         // List up to 6 channel IDs where you want auto-reactions active
         const TARGET_CHANNEL_IDS = [
-            '1454433538349727884',
-            '1454433377821130838',
-            '1517840829656600586',
-            'CHANNEL_ID_4',
+            '1542521562945822800',
+            '1542521718994903150',
+            '1542546322585034843',
+            '1542546409662976110',
             'CHANNEL_ID_5',
             'CHANNEL_ID_6'
         ];
@@ -29,8 +29,8 @@ export default {
         if (!hasImage) return;
 
         // Custom Emoji IDs (Remember: standard Discord IDs are 18-19 digits long)
-        const LIKE_EMOJI_ID = '1538769712895361054';
-        const DISLIKE_EMOJI_ID = '1538769633060851742';
+        const LIKE_EMOJI_ID = '1542530443587494028';
+        const DISLIKE_EMOJI_ID = '1542530418710937671';
 
         try {
             await message.react(LIKE_EMOJI_ID);
