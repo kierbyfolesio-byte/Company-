@@ -1,7 +1,7 @@
 FROM node:20-slim
 
-# Install system fonts required by Canvas
-RUN apt-get update && apt-get install -y fonts-dejavu-core && rm -rf /var/lib/apt/lists/*
+# Install system fonts + emoji font support
+RUN apt-get update && apt-get install -y fonts-dejavu-core fonts-noto-color-emoji && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /usr/src/app
 
