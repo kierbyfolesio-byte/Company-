@@ -1,6 +1,5 @@
 import {
     SlashCommandBuilder,
-    PermissionFlagsBits,
     ActionRowBuilder,
     StringSelectMenuBuilder,
     StringSelectMenuOptionBuilder,
@@ -19,7 +18,19 @@ import { InteractionHelper } from '../../utils/interactionHelper.js';
 import { successEmbed } from '../../utils/embeds.js';
 import { logger } from '../../utils/logger.js';
 import { TitanBotError, replyUserError, ErrorTypes } from '../../utils/errorHandler.js';
-import { getColor } from '../../config/bot.js';
+
+let getColor = (val) => val;
+try {
+    const config = await import('../../../config/bot.js');
+    if (config.getColor) getColor = config.getColor;
+} catch {
+    try {
+        const configAlt = await import('../../config/bot.js');
+        if (configAlt.getColor) getColor = configAlt.getColor;
+    } catch {
+        // Fallback if config isn't found
+    }
+}
 
 const MAX_FIELDS = 25;
 const IDLE_TIMEOUT = 900_000;
@@ -39,6 +50,7 @@ const COLOR_PRESETS = [
 ];
 
 function isValidUrl(str) {
+    if (!str) return false;
     try {
         const url = new URL(str);
         return url.protocol === 'http:' || url.protocol === 'https:';
@@ -59,15 +71,13 @@ function resolveEmbedColor(value) {
         if (/^[0-9A-Fa-f]{6}$/.test(value)) return `#${value}`;
         try {
             const resolved = getColor(value);
-            if (resolved) {
-                if (typeof resolved === 'string') {
-                    if (/^#[0-9A-Fa-f]{6}$/.test(resolved)) return resolved;
-                    if (/^[0-9A-Fa-f]{6}$/.test(resolved)) return `#${resolved}`;
-                }
-                return resolved;
+            if (resolved && typeof resolved === 'string') {
+                if (/^#[0-9A-Fa-f]{6}$/.test(resolved)) return resolved;
+                if (/^[0-9A-Fa-f]{6}$/.test(resolved)) return `#${resolved}`;
             }
+            if (typeof resolved === 'number') return resolved;
         } catch {
-            // fall back to default color
+            // fallback if lookup fails
         }
     }
     return '#336699';
@@ -99,14 +109,18 @@ function buildPreviewEmbed(state) {
 
     if (state.timestamp) {
         embed.setTimestamp(new Date());
+    } else {
+        embed.setTimestamp(null);
     }
 
-    if (state.fields.length > 0) embed.addFields(state.fields.slice(0, 25));
+    if (Array.isArray(state.fields) && state.fields.length > 0) {
+        embed.addFields(state.fields.slice(0, 25));
+    }
 
     if (
         !state.title &&
         !state.description &&
-        state.fields.length === 0 &&
+        (!state.fields || state.fields.length === 0) &&
         !state.author?.name
     ) {
         embed.setDescription('*(Empty — use the menu below to add content)*');
@@ -127,17 +141,19 @@ function buildDashboardEmbed(state) {
         `**Thumbnail** › ${state.thumbnail ? '✅ Set' : '`Not set`'}`,
         `**Image** › ${state.image ? '✅ Set' : '`Not set`'}`,
         `**Timestamp** › ${state.timestamp ? '✅ Enabled' : '`Disabled`'}`,
-        `**Fields** › ${state.fields.length} / ${MAX_FIELDS}`,
+        `**Fields** › ${state.fields ? state.fields.length : 0} / ${MAX_FIELDS}`,
     ];
 
     return new EmbedBuilder()
         .setTitle('Embed Builder — Control Panel')
         .setDescription(lines.join('\n'))
-        .setColor(resolveEmbedColor('info'))
+        .setColor(resolveEmbedColor('#3498DB'))
         .setFooter({ text: 'The preview above updates live · Closes after 15 min of inactivity' });
 }
 
 function buildMainMenu(state) {
+    const fieldCount = state.fields ? state.fields.length : 0;
+
     const primaryRow = new ActionRowBuilder().addComponents(
         new ButtonBuilder()
             .setCustomId('eb_main_edit_content')
@@ -164,7 +180,7 @@ function buildMainMenu(state) {
     const secondaryRow = new ActionRowBuilder().addComponents(
         new ButtonBuilder()
             .setCustomId('eb_main_add_field')
-            .setLabel(`Add Field (${state.fields.length}/${MAX_FIELDS})`)
+            .setLabel(`Add Field (${fieldCount}/${MAX_FIELDS})`)
             .setStyle(ButtonStyle.Primary)
             .setEmoji('➕'),
         new ButtonBuilder()
@@ -172,13 +188,13 @@ function buildMainMenu(state) {
             .setLabel('Edit Field')
             .setStyle(ButtonStyle.Secondary)
             .setEmoji('📝')
-            .setDisabled(state.fields.length === 0),
+            .setDisabled(fieldCount === 0),
         new ButtonBuilder()
             .setCustomId('eb_main_remove_field')
             .setLabel('Remove Field')
             .setStyle(ButtonStyle.Danger)
             .setEmoji('➖')
-            .setDisabled(state.fields.length === 0),
+            .setDisabled(fieldCount === 0),
         new ButtonBuilder()
             .setCustomId('eb_main_toggle_timestamp')
             .setLabel(state.timestamp ? 'Disable Timestamp' : 'Enable Timestamp')
@@ -192,7 +208,7 @@ function buildMainMenu(state) {
             .setLabel('Reorder Fields')
             .setStyle(ButtonStyle.Secondary)
             .setEmoji('↕️')
-            .setDisabled(state.fields.length < 2),
+            .setDisabled(fieldCount < 2),
         new ButtonBuilder()
             .setCustomId('eb_main_json_export')
             .setLabel('JSON / Raw Data')
@@ -283,7 +299,7 @@ async function handleSetColor(selectInteraction, rootInteraction, state) {
             new EmbedBuilder()
                 .setTitle('Set Color')
                 .setDescription('Select a preset color or choose **Custom Hex** to enter your own `#RRGGBB` value.')
-                .setColor(resolveEmbedColor('info')),
+                .setColor(resolveEmbedColor('#3498DB')),
         ],
         components: [new ActionRowBuilder().addComponents(colorSelect)],
         flags: MessageFlags.Ephemeral,
@@ -333,7 +349,7 @@ async function handleSetColor(selectInteraction, rootInteraction, state) {
                 if (!isValidHex(hex)) {
                     await replyUserError(hexSubmit, {
                         type: ErrorTypes.USER_INPUT,
-                        message: `\`${hex}\` is not a valid hex color. Use the format \`#RRGGBB\` or \`RRGGBB\`.`,
+                        message: `\`${hex}\` is not a valid hex color. Use format \`#RRGGBB\` or \`RRGGBB\`.`,
                     });
                     return;
                 }
@@ -441,7 +457,7 @@ async function handleEditField(selectInteraction, rootInteraction, state) {
             new EmbedBuilder()
                 .setTitle('Edit Field')
                 .setDescription('Select the field you want to modify.')
-                .setColor(resolveEmbedColor('info')),
+                .setColor(resolveEmbedColor('#3498DB')),
         ],
         components: [new ActionRowBuilder().addComponents(pickSelect)],
         flags: MessageFlags.Ephemeral,
@@ -498,14 +514,4 @@ async function handleEditField(selectInteraction, rootInteraction, state) {
 
             const submitted = await pickInter
                 .awaitModalSubmit({
-                    filter: i => i.customId === 'eb_edit_field_modal' && i.user.id === pickInter.user.id,
-                    time: 120_000,
-                })
-                .catch(() => null);
-
-            if (!submitted) return;
-
-            const name = submitted.fields.getTextInputValue('field_name').trim();
-            const value = submitted.fields.getTextInputValue('field_value').trim();
-            const inlineInput = submitted.fields.getTextInputValue('field_inline').trim().toLowerCase();
-            const inline = inlineInput === 'yes' ||
+                    filter: i => i.customId === 'eb_edit_field_modal' && i.user.id === pickInter
