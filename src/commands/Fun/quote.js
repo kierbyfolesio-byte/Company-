@@ -28,11 +28,11 @@ export default {
             const canvas = createCanvas(800, 300);
             const ctx = canvas.getContext('2d');
 
-            // Draw Dark Background
+            // 1. Dark Background
             ctx.fillStyle = '#111214';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-            // Fetch & Draw Circular Avatar
+            // 2. Draw Circular Avatar
             const avatarUrl = targetUser.displayAvatarURL({ extension: 'png', size: 256 });
             const avatar = await loadImage(avatarUrl);
 
@@ -44,18 +44,25 @@ export default {
             ctx.drawImage(avatar, 65, 75, 150, 150);
             ctx.restore();
 
-            // Set Text Baseline and Font (Bolder & Larger: 32px)
+            // 3. Configure Font & Baseline (Explicit Linux font family stack)
             ctx.textBaseline = 'top';
-            ctx.font = 'bold 32px sans-serif';
+            const textFont = 'bold 30px "DejaVu Sans", Arial, sans-serif';
+            ctx.font = textFont;
             ctx.fillStyle = '#FFFFFF';
 
             const quoteStr = `"${text}"`;
+            const startX = 250;
+            const startY = 70;
+            const maxWidth = 500;
+            const lineHeight = 42;
+            const emojiSize = 34;
+
+            // Parse custom Discord emojis (<:name:id> or <a:name:id>)
             const emojiRegex = /<(a?):(\w+):(\d+)>/g;
             const rawTokens = [];
             let lastIdx = 0;
             let match;
 
-            // Tokenize text and custom Discord emojis
             while ((match = emojiRegex.exec(quoteStr)) !== null) {
                 if (match.index > lastIdx) {
                     rawTokens.push({ type: 'text', content: quoteStr.slice(lastIdx, match.index) });
@@ -71,79 +78,75 @@ export default {
                 rawTokens.push({ type: 'text', content: quoteStr.slice(lastIdx) });
             }
 
-            // Split plain text into words and spaces to preserve formatting
-            const wordTokens = [];
-            for (const token of rawTokens) {
-                if (token.type === 'text') {
-                    const parts = token.content.split(/(\s+)/);
-                    for (const part of parts) {
-                        if (part) wordTokens.push({ type: 'text', content: part });
+            // Split plain text into words & preserve spaces
+            const tokens = [];
+            for (const item of rawTokens) {
+                if (item.type === 'text') {
+                    const parts = item.content.split(/(\s+)/);
+                    for (const p of parts) {
+                        if (p) tokens.push({ type: 'text', content: p });
                     }
                 } else {
-                    wordTokens.push(token);
+                    tokens.push(item);
                 }
             }
 
-            // Load emoji images asynchronously
-            const tokens = await Promise.all(wordTokens.map(async (item) => {
-                if (item.type === 'emoji') {
+            // Pre-load emoji images safely
+            const processedTokens = await Promise.all(tokens.map(async (tok) => {
+                if (tok.type === 'emoji') {
                     try {
-                        const img = await loadImage(item.url);
-                        return { ...item, img };
+                        const img = await loadImage(tok.url);
+                        return { ...tok, img };
                     } catch {
-                        return { type: 'text', content: `:${item.name}:` };
+                        return { type: 'text', content: `:${tok.name}:` };
                     }
                 }
-                return item;
+                return tok;
             }));
 
-            // Layout & Line Wrapping Settings
-            const startX = 250;
-            const startY = 75;
-            const maxWidth = 500;
-            const lineHeight = 42;
-            const fontSize = 32;
-
+            // Calculate line wrapping
             const lines = [[]];
             let currentLineWidth = 0;
 
-            for (const token of tokens) {
-                let tokenWidth = 0;
-                if (token.type === 'text') {
-                    tokenWidth = ctx.measureText(token.content).width;
-                } else if (token.type === 'emoji' && token.img) {
-                    tokenWidth = fontSize + 6;
+            for (const tok of processedTokens) {
+                let w = 0;
+                if (tok.type === 'text') {
+                    w = ctx.measureText(tok.content).width;
+                } else if (tok.type === 'emoji' && tok.img) {
+                    w = emojiSize + 4;
                 }
 
-                if (currentLineWidth + tokenWidth > maxWidth && currentLineWidth > 0 && token.content !== ' ') {
+                if (currentLineWidth + w > maxWidth && currentLineWidth > 0 && tok.content !== ' ') {
                     lines.push([]);
                     currentLineWidth = 0;
-                    if (token.type === 'text' && token.content.trim() === '') continue;
+                    if (tok.type === 'text' && tok.content.trim() === '') continue;
                 }
 
-                lines[lines.length - 1].push({ ...token, width: tokenWidth });
-                currentLineWidth += tokenWidth;
+                lines[lines.length - 1].push({ ...tok, width: w });
+                currentLineWidth += w;
             }
 
-            // Render Quote Text & Custom Emojis
+            // 4. Render Quote Text & Inline Emojis
             let currentY = startY;
             for (const line of lines) {
                 let currentX = startX;
                 for (const item of line) {
                     if (item.type === 'text') {
+                        ctx.font = textFont;
+                        ctx.fillStyle = '#FFFFFF';
                         ctx.fillText(item.content, currentX, currentY);
                     } else if (item.type === 'emoji' && item.img) {
-                        ctx.drawImage(item.img, currentX, currentY + 2, fontSize + 4, fontSize + 4);
+                        ctx.drawImage(item.img, currentX, currentY - 2, emojiSize, emojiSize);
                     }
                     currentX += item.width;
                 }
                 currentY += lineHeight;
             }
 
-            // Draw Author Name
-            ctx.font = 'bold 22px sans-serif';
+            // 5. Render Author Name
+            ctx.font = 'bold 22px "DejaVu Sans", Arial, sans-serif';
             ctx.fillStyle = '#949BA4';
-            ctx.fillText(`— ${targetUser.displayName || targetUser.username}`, startX, currentY + 12);
+            ctx.fillText(`— ${targetUser.displayName || targetUser.username}`, startX, currentY + 10);
 
             // Output Attachment
             const buffer = await canvas.encode('png');
