@@ -50,19 +50,23 @@ function isValidUrl(str) {
 }
 
 function isValidHex(str) {
-    return /^#[0-9A-Fa-f]{6}$/.test(str);
+    return /^#?[0-9A-Fa-f]{6}$/.test(str);
 }
 
 function resolveEmbedColor(value) {
+    if (!value) return '#336699';
+
+    if (/^[0-9A-Fa-f]{6}$/.test(value)) return `#${value}`;
+    if (/^#[0-9A-Fa-f]{6}$/.test(value)) return value;
+
     try {
-        const resolved = getColor(value || 'primary');
-        if (typeof resolved === 'number' && Number.isFinite(resolved) && resolved >= 0 && resolved <= 0xffffff) {
-            return resolved;
-        }
+        const resolved = getColor(value);
+        if (resolved) return resolved;
     } catch {
-        // ignore invalid value and fall through to primary
+        // Fallback if config key is missing
     }
-    return getColor('primary');
+
+    return '#336699';
 }
 
 function buildPreviewEmbed(state) {
