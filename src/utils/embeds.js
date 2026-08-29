@@ -36,21 +36,26 @@ const originalSetFooter = EmbedBuilder.prototype.setFooter;
 const originalSetTimestamp = EmbedBuilder.prototype.setTimestamp;
 
 EmbedBuilder.prototype.setTitle = function setSanitizedTitle(title) {
-  if (!title) return this;
-  return originalSetTitle.call(this, sanitizeEmbedText(title));
+  if (title === null || title === undefined) {
+    return originalSetTitle.call(this, null);
+  }
+  const cleaned = sanitizeEmbedText(title);
+  return originalSetTitle.call(this, cleaned || null);
 };
 
 EmbedBuilder.prototype.setAuthor = function setSanitizedAuthor(author) {
-  if (!author) return this;
+  if (author === null || author === undefined) {
+    return originalSetAuthor.call(this, null);
+  }
+
   if (typeof author === 'string') {
-    return originalSetAuthor.call(this, { name: sanitizeEmbedText(author) });
+    const name = sanitizeEmbedText(author);
+    return name ? originalSetAuthor.call(this, { name }) : originalSetAuthor.call(this, null);
   }
 
   if (typeof author === 'object' && typeof author.name === 'string') {
-    return originalSetAuthor.call(this, {
-      ...author,
-      name: sanitizeEmbedText(author.name),
-    });
+    const name = sanitizeEmbedText(author.name);
+    return name ? originalSetAuthor.call(this, { ...author, name }) : originalSetAuthor.call(this, null);
   }
 
   return originalSetAuthor.call(this, author);
@@ -59,30 +64,36 @@ EmbedBuilder.prototype.setAuthor = function setSanitizedAuthor(author) {
 EmbedBuilder.prototype.addFields = function addSanitizedFields(...fields) {
   const normalized = fields.flatMap((field) => (Array.isArray(field) ? field : [field]));
   const sanitized = normalized.map(sanitizeEmbedField);
-  return originalAddFields.call(this, sanitized);
+  return originalAddFields.apply(this, sanitized);
 };
 
-EmbedBuilder.prototype.setDescription = function(description = '') {
-  if (!description) return this;
-  return originalSetDescription.call(this, sanitizeEmbedText(description));
+EmbedBuilder.prototype.setDescription = function setSanitizedDescription(description) {
+  if (description === null || description === undefined) {
+    return originalSetDescription.call(this, null);
+  }
+  const cleaned = sanitizeEmbedText(description);
+  return originalSetDescription.call(this, cleaned || null);
 };
 
-EmbedBuilder.prototype.setFooter = function(footer) {
-  if (!footer) return this;
+EmbedBuilder.prototype.setFooter = function setSanitizedFooter(footer) {
+  if (footer === null || footer === undefined) {
+    return originalSetFooter.call(this, null);
+  }
+
   if (typeof footer === 'string') {
     const text = sanitizeEmbedText(footer);
-    return text ? originalSetFooter.call(this, { text }) : this;
+    return text ? originalSetFooter.call(this, { text }) : originalSetFooter.call(this, null);
   }
 
   if (typeof footer === 'object' && typeof footer.text === 'string') {
     const text = sanitizeEmbedText(footer.text);
-    return text ? originalSetFooter.call(this, { ...footer, text }) : this;
+    return text ? originalSetFooter.call(this, { ...footer, text }) : originalSetFooter.call(this, null);
   }
 
   return originalSetFooter.call(this, footer);
 };
 
-EmbedBuilder.prototype.setTimestamp = function(timestamp) {
+EmbedBuilder.prototype.setTimestamp = function setSanitizedTimestamp(timestamp) {
   return originalSetTimestamp.call(this, timestamp);
 };
 
@@ -100,11 +111,11 @@ export function createEmbed({
 } = {}) {
   const embed = new EmbedBuilder();
 
-  if (title && typeof title === 'string' && title.length > 0) {
+  if (title && typeof title === 'string' && title.trim().length > 0) {
     embed.setTitle(title.substring(0, 256));
   }
 
-  if (description && typeof description === 'string' && description.length > 0) {
+  if (description && typeof description === 'string' && description.trim().length > 0) {
     embed.setDescription(description.substring(0, 4096));
   }
 
@@ -135,9 +146,9 @@ export function createEmbed({
 
   if (author) {
     try {
-      if (typeof author === 'string' && author.length > 0) {
+      if (typeof author === 'string' && author.trim().length > 0) {
         embed.setAuthor({ name: author.substring(0, 256) });
-      } else if (author && typeof author.name === 'string') {
+      } else if (author && typeof author.name === 'string' && author.name.trim().length > 0) {
         embed.setAuthor(author);
       }
     } catch (error) {
@@ -153,9 +164,9 @@ export function createEmbed({
 
   if (footer) {
     try {
-      if (typeof footer === 'string' && footer.length > 0) {
+      if (typeof footer === 'string' && footer.trim().length > 0) {
         embed.setFooter({ text: footer.substring(0, 2048) });
-      } else if (footer && typeof footer.text === 'string') {
+      } else if (footer && typeof footer.text === 'string' && footer.text.trim().length > 0) {
         embed.setFooter(footer);
       }
     } catch (error) {
@@ -171,7 +182,7 @@ export function createEmbed({
 
   if (thumbnail) {
     try {
-      if (typeof thumbnail === 'string' && thumbnail.length > 0) {
+      if (typeof thumbnail === 'string' && thumbnail.trim().length > 0) {
         embed.setThumbnail(thumbnail);
       } else if (thumbnail && typeof thumbnail.url === 'string') {
         embed.setThumbnail(thumbnail.url);
@@ -185,7 +196,7 @@ export function createEmbed({
 
   if (image) {
     try {
-      if (typeof image === 'string' && image.length > 0) {
+      if (typeof image === 'string' && image.trim().length > 0) {
         embed.setImage(image);
       } else if (image && typeof image.url === 'string') {
         embed.setImage(image.url);
@@ -201,7 +212,7 @@ export function createEmbed({
     embed.setTimestamp(timestamp);
   }
 
-  if (url && typeof url === 'string' && url.length > 0) {
+  if (url && typeof url === 'string' && url.trim().length > 0) {
     try {
       embed.setURL(url);
     } catch (error) {
@@ -381,5 +392,5 @@ export function formatProgressBar(current, max, size = 10) {
   const filled = Math.round(size * progress);
   const empty = size - filled;
   return `[${'█'.repeat(filled)}${'░'.repeat(empty)}] ${Math.round(progress * 100)}%`;
-                 }
+}
   
