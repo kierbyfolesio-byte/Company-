@@ -3,21 +3,16 @@
 import { EmbedBuilder } from 'discord.js';
 import { getColor, botConfig } from '../config/bot.js';
 
-const EMOJI_REGEX = /[\p{Extended_Pictographic}\uFE0F]/gu;
-const EMBED_FOOTER_SYMBOL = Symbol('titanbotFooterText');
-const EMBED_BASE_DESCRIPTION_SYMBOL = Symbol('titanbotBaseDescription');
-
 function sanitizeEmbedText(text = '') {
   if (typeof text !== 'string') {
     return text;
   }
 
   return text
-    .replace(EMOJI_REGEX, '')
-    .replace(/[ \t]+/g, ' ')  // Replace consecutive spaces/tabs with single space
-    .replace(/[ \t]\n/g, '\n')  // Remove spaces before newlines
-    .replace(/\n[ \t]/g, '\n')  // Remove spaces after newlines
-    .replace(/\n{3,}/g, '\n\n')  // Limit consecutive newlines to 2
+    .replace(/[ \t]+/g, ' ')
+    .replace(/[ \t]\n/g, '\n')
+    .replace(/\n[ \t]/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
     .trim();
 }
 
@@ -28,25 +23,30 @@ function sanitizeEmbedField(field) {
 
   return {
     ...field,
-    name: sanitizeEmbedText(field.name),
-    value: sanitizeEmbedText(field.value),
+    name: typeof field.name === 'string' ? sanitizeEmbedText(field.name) : field.name,
+    value: typeof field.value === 'string' ? sanitizeEmbedText(field.value) : field.value,
   };
 }
 
 const originalSetTitle = EmbedBuilder.prototype.setTitle;
 const originalSetAuthor = EmbedBuilder.prototype.setAuthor;
 const originalAddFields = EmbedBuilder.prototype.addFields;
+const originalSetDescription = EmbedBuilder.prototype.setDescription;
+const originalSetFooter = EmbedBuilder.prototype.setFooter;
+const originalSetTimestamp = EmbedBuilder.prototype.setTimestamp;
 
 EmbedBuilder.prototype.setTitle = function setSanitizedTitle(title) {
+  if (!title) return this;
   return originalSetTitle.call(this, sanitizeEmbedText(title));
 };
 
 EmbedBuilder.prototype.setAuthor = function setSanitizedAuthor(author) {
+  if (!author) return this;
   if (typeof author === 'string') {
-    return originalSetAuthor.call(this, sanitizeEmbedText(author));
+    return originalSetAuthor.call(this, { name: sanitizeEmbedText(author) });
   }
 
-  if (author && typeof author.name === 'string') {
+  if (typeof author === 'object' && typeof author.name === 'string') {
     return originalSetAuthor.call(this, {
       ...author,
       name: sanitizeEmbedText(author.name),
@@ -62,53 +62,28 @@ EmbedBuilder.prototype.addFields = function addSanitizedFields(...fields) {
   return originalAddFields.call(this, sanitized);
 };
 
-function normalizeFooterText(footer) {
-  if (!footer) {
-    return '';
-  }
-
-  if (typeof footer === 'string') {
-    return footer.trim();
-  }
-
-  if (footer && typeof footer.text === 'string') {
-    return footer.text.trim();
-  }
-
-  return '';
-}
-
-function isImportantFooter(footerText) {
-  if (!footerText) {
-    return false;
-  }
-
-  const normalized = footerText.toLowerCase();
-  return /\b(close|closes|closed|expire|expires|available in|page\s+\d+|dashboard closes|ticket id)\b/.test(normalized);
-}
-
-const originalSetDescription = EmbedBuilder.prototype.setDescription;
-const originalSetFooter = EmbedBuilder.prototype.setFooter;
-const originalSetTimestamp = EmbedBuilder.prototype.setTimestamp;
-
 EmbedBuilder.prototype.setDescription = function(description = '') {
-  const descString = sanitizeEmbedText(description || '');
-  this[EMBED_BASE_DESCRIPTION_SYMBOL] = descString;
-  return originalSetDescription.call(this, descString);
+  if (!description) return this;
+  return originalSetDescription.call(this, sanitizeEmbedText(description));
 };
 
 EmbedBuilder.prototype.setFooter = function(footer) {
-  const footerText = sanitizeEmbedText(normalizeFooterText(footer));
-  if (!footerText || !isImportantFooter(footerText)) {
-    return this;
+  if (!footer) return this;
+  if (typeof footer === 'string') {
+    const text = sanitizeEmbedText(footer);
+    return text ? originalSetFooter.call(this, { text }) : this;
   }
 
-  this[EMBED_FOOTER_SYMBOL] = footerText;
-  return originalSetFooter.call(this, { text: footerText });
+  if (typeof footer === 'object' && typeof footer.text === 'string') {
+    const text = sanitizeEmbedText(footer.text);
+    return text ? originalSetFooter.call(this, { ...footer, text }) : this;
+  }
+
+  return originalSetFooter.call(this, footer);
 };
 
-EmbedBuilder.prototype.setTimestamp = function() {
-  return this;
+EmbedBuilder.prototype.setTimestamp = function(timestamp) {
+  return originalSetTimestamp.call(this, timestamp);
 };
 
 export function createEmbed({
@@ -134,7 +109,18 @@ export function createEmbed({
   }
 
   try {
-    const embedColor = getColor(color) || '#000000';
+    let embedColor = '#000000';
+    if (typeof color === 'string') {
+      if (/^#[0-9A-Fa-f]{6}$/.test(color)) {
+        embedColor = color;
+      } else if (/^[0-9A-Fa-f]{6}$/.test(color)) {
+        embedColor = `#${color}`;
+      } else {
+        embedColor = getColor(color) || '#000000';
+      }
+    } else if (typeof color === 'number') {
+      embedColor = color;
+    }
     embed.setColor(embedColor);
   } catch (error) {
     embed.setColor('#000000');
@@ -157,7 +143,7 @@ export function createEmbed({
     } catch (error) {
       
     }
-  } else if (botConfig.embeds?.author?.name) {
+  } else if (botConfig?.embeds?.author?.name) {
     embed.setAuthor({
       name: botConfig.embeds.author.name,
       ...(botConfig.embeds.author.icon ? { iconURL: botConfig.embeds.author.icon } : {}),
@@ -175,7 +161,7 @@ export function createEmbed({
     } catch (error) {
       
     }
-  } else if (botConfig.embeds?.footer?.text) {
+  } else if (botConfig?.embeds?.footer?.text) {
     const defaultFooter = {
       text: botConfig.embeds.footer.text,
       ...(botConfig.embeds.footer.icon ? { iconURL: botConfig.embeds.footer.icon } : {}),
@@ -193,7 +179,7 @@ export function createEmbed({
     } catch (error) {
       
     }
-  } else if (botConfig.embeds?.thumbnail) {
+  } else if (botConfig?.embeds?.thumbnail) {
     embed.setThumbnail(botConfig.embeds.thumbnail);
   }
 
@@ -250,12 +236,6 @@ const USER_ERROR_COLORS = {
   rate_limit: 'warning',
 };
 
-/**
- * Build a consistent user-facing error embed.
- * @param {string} errorType - Error category key (e.g. validation, permission)
- * @param {string} [description] - Specific, actionable message for the user
- * @param {{ titleOverride?: string }} [options]
- */
 export function buildUserErrorEmbed(errorType, description = '', options = {}) {
   const type = errorType || 'unknown';
   const title = options.titleOverride || USER_ERROR_TITLES[type] || USER_ERROR_TITLES.unknown;
@@ -290,9 +270,6 @@ function buildNotificationEmbed(title, body = '', color = 'primary') {
   });
 }
 
-/**
- * @deprecated Prefer buildUserErrorEmbed or replyUserError from errorHandler.js.
- */
 export function errorEmbed(title, detail = null, options = {}) {
   const { showDetails = process.env.NODE_ENV !== 'production' } = options;
   let body = detail;
@@ -308,7 +285,6 @@ export function errorEmbed(title, detail = null, options = {}) {
   return buildUserErrorEmbed('unknown', description, { titleOverride });
 }
 
-/** @param {string} titleOrBody - With one arg: body text. With two args: title and body. */
 export function successEmbed(title, body = '') {
   if (arguments.length === 1) {
     return buildNotificationEmbed('Success', title, 'success');
@@ -317,7 +293,6 @@ export function successEmbed(title, body = '') {
   return buildNotificationEmbed(title || 'Success', body, 'success');
 }
 
-/** @param {string} titleOrBody - With one arg: body text. With two args: title and body. */
 export function infoEmbed(title, body = '') {
   if (arguments.length === 1) {
     return buildNotificationEmbed('Information', title, 'info');
@@ -326,7 +301,6 @@ export function infoEmbed(title, body = '') {
   return buildNotificationEmbed(title || 'Information', body, 'info');
 }
 
-/** @param {string} titleOrBody - With one arg: body text. With two args: title and body. */
 export function warningEmbed(title, body = '') {
   if (arguments.length === 1) {
     return buildNotificationEmbed('Warning', title, 'warning');
@@ -407,4 +381,4 @@ export function formatProgressBar(current, max, size = 10) {
   const filled = Math.round(size * progress);
   const empty = size - filled;
   return `[${'█'.repeat(filled)}${'░'.repeat(empty)}] ${Math.round(progress * 100)}%`;
-}
+  }
