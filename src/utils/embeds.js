@@ -381,4 +381,5 @@ export function formatProgressBar(current, max, size = 10) {
   const filled = Math.round(size * progress);
   const empty = size - filled;
   return `[${'█'.repeat(filled)}${'░'.repeat(empty)}] ${Math.round(progress * 100)}%`;
-  }
+                 }
+  
